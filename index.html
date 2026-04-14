@@ -3,157 +3,243 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Hệ Thống SOS Pro v2</title>
+    <title>Hệ Thống SOS - Quản Lý An Toàn</title>
     
+    <meta name="theme-color" content="#1e40af">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/552/552402.png">
+
     <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.js"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <style>
-        :root { --p: #2563eb; --d: #ef4444; --s: #22c55e; --bg: #0f172a; --card: #ffffff; }
-        body { font-family: 'Segoe UI', system-ui; background: var(--bg); margin: 0; color: #1e293b; overflow-x: hidden; }
+        :root { --primary: #1e40af; --danger: #dc2626; --success: #16a34a; --bg: #f1f5f9; --dark: #0f172a; }
         
-        /* Màn hình Đăng nhập/Đăng ký */
-        .auth-screen { height: 100vh; display: flex; justify-content: center; align-items: center; padding: 20px; box-sizing: border-box; }
-        .auth-card { background: white; padding: 30px; border-radius: 24px; width: 100%; max-width: 380px; box-shadow: 0 20px 50px rgba(0,0,0,0.5); text-align: center; }
+        body { font-family: 'Segoe UI', Arial, sans-serif; background: var(--dark); margin: 0; color: #334155; }
+        
+        /* Màn hình Auth (Đăng nhập/Đăng ký) */
+        .auth-container { height: 100vh; display: flex; justify-content: center; align-items: center; padding: 20px; box-sizing: border-box; }
+        .auth-box { background: white; padding: 35px; border-radius: 24px; width: 100%; max-width: 400px; box-shadow: 0 20px 40px rgba(0,0,0,0.4); text-align: center; }
         .hidden { display: none !important; }
 
-        /* Dashboard chính */
-        #dashboard { display: none; background: #f8fafc; min-height: 100vh; padding: 15px; padding-bottom: 50px; }
-        .header { display: flex; justify-content: space-between; align-items: center; background: white; padding: 12px 20px; border-radius: 16px; margin-bottom: 15px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
+        /* Dashboard App */
+        #main-app { display: none; background: var(--bg); min-height: 100vh; padding: 15px; }
+        .top-nav { display: flex; justify-content: space-between; align-items: center; background: white; padding: 12px 20px; border-radius: 16px; margin-bottom: 15px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); }
         
-        .inp { width: 100%; padding: 14px; margin: 10px 0; border: 1.5px solid #e2e8f0; border-radius: 12px; box-sizing: border-box; font-size: 16px; outline: none; }
-        .inp:focus { border-color: var(--p); }
+        /* Form elements */
+        .input-group { margin-bottom: 15px; text-align: left; }
+        label { font-size: 13px; font-weight: 600; color: #64748b; margin-bottom: 5px; display: block; }
+        .inp { width: 100%; padding: 14px; border: 1px solid #e2e8f0; border-radius: 12px; box-sizing: border-box; font-size: 16px; transition: 0.3s; }
+        .inp:focus { border-color: var(--primary); outline: none; box-shadow: 0 0 0 3px rgba(30, 64, 175, 0.1); }
         
-        .btn { width: 100%; padding: 15px; border-radius: 12px; border: none; color: white; font-weight: bold; cursor: pointer; font-size: 16px; margin-top: 10px; transition: 0.2s; }
-        .btn-p { background: var(--p); }
-        .btn-o { background: none; border: 1.5px solid var(--p); color: var(--p); }
-        .btn-out { width: auto; background: none; color: var(--d); padding: 0; margin: 0; font-size: 22px; }
+        .btn { width: 100%; padding: 14px; border-radius: 12px; border: none; color: white; font-weight: bold; cursor: pointer; font-size: 16px; transition: 0.2s; }
+        .btn:active { transform: scale(0.98); }
+        .btn-blue { background: var(--primary); }
+        .btn-outline { background: none; border: 1px solid var(--primary); color: var(--primary); margin-top: 12px; }
+        .btn-logout { background: none; color: var(--danger); font-size: 22px; width: auto; padding: 0; }
 
-        .st-bar { padding: 15px; border-radius: 16px; text-align: center; color: white; font-weight: bold; margin-bottom: 15px; font-size: 15px; }
-        .safe { background: var(--s); }
-        .danger { background: var(--d); animation: flash 0.8s infinite; }
-        @keyframes flash { 0%, 100% { opacity: 1; } 50% { opacity: 0.7; } }
+        /* Trạng thái SOS */
+        .status-header { padding: 16px; border-radius: 16px; text-align: center; color: white; font-weight: bold; margin-bottom: 15px; font-size: 16px; }
+        .safe { background: var(--success); }
+        .danger { background: var(--danger); animation: pulse 0.8s infinite; }
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.8; } 100% { opacity: 1; } }
 
         .card { background: white; padding: 18px; border-radius: 20px; margin-bottom: 15px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); }
-        #map { width: 100%; height: 260px; border-radius: 12px; border: 1px solid #eee; }
-        h3 { margin: 0 0 12px 0; font-size: 16px; display: flex; align-items: center; gap: 10px; }
+        #map-view { width: 100%; height: 280px; border-radius: 12px; border: 1px solid #eee; z-index: 1; }
+        h3 { margin: 0 0 15px 0; font-size: 17px; display: flex; align-items: center; gap: 10px; color: var(--dark); }
     </style>
 </head>
 <body>
 
-    <div id="scr-login" class="auth-screen">
-        <div class="auth-card">
-            <h1 style="color:var(--p); margin:0">SOS App</h1>
-            <p style="color:#64748b; margin-bottom:20px">Đăng nhập để giám sát</p>
-            <input type="text" id="l-id" class="inp" placeholder="ID Thiết bị">
-            <input type="password" id="l-pass" class="inp" placeholder="Mật khẩu">
-            <button class="btn btn-p" onclick="doLogin()">ĐĂNG NHẬP</button>
-            <button class="btn btn-o" onclick="goReg(true)">Đăng ký xe mới</button>
-        </div>
-    </div>
-
-    <div id="scr-reg" class="auth-screen hidden">
-        <div class="auth-card">
-            <h2 style="margin:0">Đăng Ký</h2>
-            <p style="color:#64748b; margin-bottom:20px">Tạo tài khoản thiết bị</p>
-            <input type="text" id="r-id" class="inp" placeholder="ID Xe (VD: xe01)">
-            <input type="tel" id="r-phone" class="inp" placeholder="SĐT cứu hộ">
-            <input type="password" id="r-pass" class="inp" placeholder="Mật khẩu">
-            <button class="btn btn-p" onclick="doReg()">XÁC NHẬN ĐĂNG KÝ</button>
-            <button class="btn btn-o" onclick="goReg(false)">Quay lại</button>
-        </div>
-    </div>
-
-    <div id="dashboard">
-        <div class="header">
-            <b id="user-display"><i class="fas fa-motorcycle"></i> ID: --</b>
-            <button class="btn-out" onclick="location.reload()"><i class="fas fa-power-off"></i></button>
-        </div>
-
-        <div id="st-box" class="st-bar safe">TRẠNG THÁI: AN TOÀN</div>
-
-        <div class="card">
-            <h3><i class="fas fa-phone-alt"></i> SĐT Cứu Hộ</h3>
-            <div style="display:flex; gap:10px">
-                <input type="text" id="p-val" class="inp" style="margin:0">
-                <button class="btn btn-p" style="width:80px; margin:0" onclick="savePhone()">LƯU</button>
+    <div id="login-screen" class="auth-container">
+        <div class="auth-box">
+            <div style="background: #eff6ff; width: 60px; height: 60px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 20px;">
+                <i class="fas fa-user-shield" style="font-size: 30px; color: var(--primary);"></i>
             </div>
+            <h2 style="margin: 0 0 10px 0;">Đăng Nhập</h2>
+            <p style="color: #64748b; margin-bottom: 25px;">Hệ thống giám sát SOS</p>
+            
+            <input type="text" id="l-id" class="inp" placeholder="ID Thiết bị">
+            <div style="margin-top: 10px;"></div>
+            <input type="password" id="l-pass" class="inp" placeholder="Mật khẩu">
+            
+            <button class="btn btn-blue" onclick="handleLogin()" style="margin-top: 20px;">VÀO HỆ THỐNG</button>
+            <button class="btn btn-outline" onclick="changeScreen('register-screen')">Đăng ký thiết bị mới</button>
+        </div>
+    </div>
+
+    <div id="register-screen" class="auth-container hidden">
+        <div class="auth-box">
+            <h2 style="margin-bottom: 5px;">Đăng Ký Xe</h2>
+            <p style="color: #64748b; margin-bottom: 25px;">Khởi tạo thông tin thiết bị</p>
+            
+            <div class="input-group">
+                <label>Mã ID Xe</label>
+                <input type="text" id="r-id" class="inp" placeholder="Ví dụ: xe_01">
+            </div>
+            <div class="input-group">
+                <label>SĐT Nhận Thông Báo</label>
+                <input type="tel" id="r-phone" class="inp" placeholder="Ví dụ: 09xxxxxxxx">
+            </div>
+            <div class="input-group">
+                <label>Mật Khẩu</label>
+                <input type="password" id="r-pass" class="inp" placeholder="Ít nhất 6 ký tự">
+            </div>
+            
+            <button class="btn btn-blue" onclick="handleRegister()">XÁC NHẬN ĐĂNG KÝ</button>
+            <button class="btn btn-outline" onclick="changeScreen('login-screen')">Quay lại đăng nhập</button>
+        </div>
+    </div>
+
+    <div id="main-app">
+        <div class="top-nav">
+            <div style="display: flex; align-items: center; gap: 12px;">
+                <div style="width: 35px; height: 35px; background: var(--primary); border-radius: 10px; display: flex; align-items: center; justify-content: center; color: white;">
+                    <i class="fas fa-car-side"></i>
+                </div>
+                <b id="user-tag" style="font-size: 16px;">--</b>
+            </div>
+            <button class="btn btn-logout" onclick="handleLogout()"><i class="fas fa-power-off"></i></button>
+        </div>
+
+        <div id="status-display" class="status-header safe">
+            <i class="fas fa-check-circle"></i> HỆ THỐNG HOẠT ĐỘNG BÌNH THƯỜNG
         </div>
 
         <div class="card">
-            <h3><i class="fas fa-map-marker-alt"></i> Vị trí xe</h3>
-            <div id="map"></div>
+            <h3><i class="fas fa-user-cog" style="color: var(--primary)"></i> Cài đặt cứu hộ</h3>
+            <div style="display: flex; gap: 10px;">
+                <input type="text" id="edit-phone" class="inp" style="margin:0; flex: 1;">
+                <button class="btn btn-blue" style="width: 80px; margin:0; padding: 10px;" onclick="updatePhone()">LƯU</button>
+            </div>
+            <p style="font-size: 11px; color: #94a3b8; margin: 8px 0 0 5px;">Số này sẽ được dùng để gửi tin nhắn khẩn cấp.</p>
+        </div>
+
+        <div class="card">
+            <h3><i class="fas fa-map-marked-alt" style="color: var(--danger)"></i> Vị trí thiết bị</h3>
+            <div id="map-view"></div>
+        </div>
+
+        <div class="card">
+            <h3><i class="fas fa-stream"></i> Nhật ký hệ thống</h3>
+            <div id="sys-logs" style="height: 100px; overflow-y: auto; font-family: 'Courier New', monospace; font-size: 12px; background: #f8fafc; padding: 10px; border-radius: 10px; line-height: 1.6;">
+                [Hệ thống] Đang chờ kết nối...
+            </div>
         </div>
     </div>
 
     <script>
+        let currentSessionUser = null;
+        let map, marker, mqttClient;
+
         // Chuyển màn hình
-        function goReg(isReg) {
-            document.getElementById('scr-login').className = isReg ? 'auth-screen hidden' : 'auth-screen';
-            document.getElementById('scr-reg').className = isReg ? 'auth-screen' : 'auth-screen hidden';
-        }
-
-        // Đăng ký (Lưu Local)
-        function doReg() {
-            const id = document.getElementById('r-id').value.trim();
-            const ph = document.getElementById('r-phone').value.trim();
-            const ps = document.getElementById('r-pass').value.trim();
-            if(!id || !ph || !ps) return alert("Vui lòng điền đủ!");
-
-            let db = JSON.parse(localStorage.getItem('my_sos_db') || "{}");
-            db[id] = { pass: ps, phone: ph };
-            localStorage.setItem('my_sos_db', JSON.stringify(db));
-            alert("Đã đăng ký xe " + id);
-            goReg(false);
-        }
-
-        // Đăng nhập
-        let currentUser = "";
-        function doLogin() {
-            const id = document.getElementById('l-id').value.trim();
-            const ps = document.getElementById('l-pass').value.trim();
-            let db = JSON.parse(localStorage.getItem('my_sos_db') || "{}");
-
-            if(db[id] && db[id].pass === ps) {
-                currentUser = id;
-                document.getElementById('user-display').innerText = "ID: " + id;
-                document.getElementById('p-val').value = db[id].phone;
-                document.getElementById('scr-login').style.display = 'none';
-                document.getElementById('dashboard').style.display = 'block';
-                initApp();
+        function changeScreen(id) {
+            document.getElementById('login-screen').classList.add('hidden');
+            document.getElementById('register-screen').classList.add('hidden');
+            document.getElementById('main-app').style.display = 'none';
+            
+            if(id === 'main-app') {
+                document.getElementById(id).style.display = 'block';
             } else {
-                alert("Sai ID hoặc mật khẩu!");
+                document.getElementById(id).classList.remove('hidden');
             }
         }
 
-        function savePhone() {
-            let db = JSON.parse(localStorage.getItem('my_sos_db') || "{}");
-            db[currentUser].phone = document.getElementById('p-val').value;
-            localStorage.setItem('my_sos_db', JSON.stringify(db));
-            alert("Đã cập nhật số điện thoại!");
+        // XỬ LÝ ĐĂNG KÝ
+        function handleRegister() {
+            const id = document.getElementById('r-id').value.trim();
+            const phone = document.getElementById('r-phone').value.trim();
+            const pass = document.getElementById('r-pass').value.trim();
+
+            if(!id || !phone || !pass) return alert("Vui lòng điền đầy đủ các ô!");
+
+            let db = JSON.parse(localStorage.getItem('sos_local_db') || "{}");
+            if(db[id]) return alert("ID này đã tồn tại trên máy!");
+
+            db[id] = { password: pass, phone: phone };
+            localStorage.setItem('sos_local_db', JSON.stringify(db));
+            
+            alert("Đăng ký thành công! Bạn có thể đăng nhập ngay.");
+            changeScreen('login-screen');
         }
 
-        // Bản đồ & MQTT
-        let map, marker, mqtt;
-        function initApp() {
-            map = L.map('map').setView([21.0357, 105.8012], 15);
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-            marker = L.marker([21.0357, 105.8012]).addTo(map);
+        // XỬ LÝ ĐĂNG NHẬP
+        function handleLogin() {
+            const id = document.getElementById('l-id').value.trim();
+            const pass = document.getElementById('l-pass').value.trim();
+            
+            let db = JSON.parse(localStorage.getItem('sos_local_db') || "{}");
+            
+            if(db[id] && db[id].password === pass) {
+                currentSessionUser = id;
+                document.getElementById('user-tag').innerText = "ID: " + id;
+                document.getElementById('edit-phone').value = db[id].phone;
+                changeScreen('main-app');
+                startSystem();
+            } else {
+                alert("ID hoặc mật khẩu không chính xác!");
+            }
+        }
 
-            mqtt = new Paho.MQTT.Client("broker.hivemq.com", 8000, "cl_"+Math.random());
-            mqtt.onMessageArrived = (msg) => {
-                const d = msg.payloadString.split('|');
-                if(d[0]==='danger') {
-                    document.getElementById('st-box').className = "st-bar danger";
-                    document.getElementById('st-box').innerText = "CẢNH BÁO TAI NẠN!";
-                    const lat = parseFloat(d[1]), lng = parseFloat(d[2]);
+        // CẬP NHẬT SĐT
+        function updatePhone() {
+            const newPhone = document.getElementById('edit-phone').value.trim();
+            let db = JSON.parse(localStorage.getItem('sos_local_db') || "{}");
+            
+            db[currentSessionUser].phone = newPhone;
+            localStorage.setItem('sos_local_db', JSON.stringify(db));
+            alert("Đã lưu số điện thoại mới!");
+        }
+
+        // ĐĂNG XUẤT
+        function handleLogout() {
+            if(mqttClient) mqttClient.disconnect();
+            location.reload(); 
+        }
+
+        // KHỞI CHẠY MAP & MQTT
+        function startSystem() {
+            // Khởi tạo bản đồ nếu chưa có
+            if(!map) {
+                map = L.map('map-view').setView([21.0285, 105.8542], 15);
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+                marker = L.marker([21.0285, 105.8542]).addTo(map);
+            }
+
+            const clientID = "web_user_" + Math.random().toString(16).substr(2, 6);
+            mqttClient = new Paho.MQTT.Client("broker.hivemq.com", 8000, clientID);
+            
+            mqttClient.onMessageArrived = (msg) => {
+                const raw = msg.payloadString.split('|');
+                if(raw[0] === 'danger') {
+                    const lat = parseFloat(raw[1]);
+                    const lng = parseFloat(raw[2]);
+                    
+                    document.getElementById('status-display').innerText = "!!! CẢNH BÁO TAI NẠN !!!";
+                    document.getElementById('status-display').className = "status-header danger";
+                    
                     marker.setLatLng([lat, lng]);
                     map.setView([lat, lng], 17);
+                    
+                    addLog("CẢNH BÁO: Va chạm tại " + lat + ", " + lng);
                 }
             };
-            mqtt.connect({onSuccess: () => mqtt.subscribe("hethong_sos/data")});
+
+            mqttClient.connect({
+                onSuccess: () => {
+                    addLog("Kết nối Server thành công.");
+                    mqttClient.subscribe("hethong_sos/data");
+                },
+                onFailure: () => addLog("Lỗi kết nối Server!")
+            });
+        }
+
+        function addLog(text) {
+            const box = document.getElementById('sys-logs');
+            const time = new Date().toLocaleTimeString();
+            box.innerHTML = `<div>[${time}] ${text}</div>` + box.innerHTML;
         }
     </script>
 </body>
