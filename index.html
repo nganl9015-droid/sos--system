@@ -16,7 +16,6 @@
         :root { --blue: #1e40af; --red: #dc2626; --green: #16a34a; --bg: #f1f5f9; --dark: #0f172a; }
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: var(--dark); margin: 0; transition: 0.3s; overflow-x: hidden; }
         
-        /* Login Page */
         #login-page { height: 100vh; display: flex; justify-content: center; align-items: center; background: radial-gradient(circle, #1e293b 0%, #0f172a 100%); position: fixed; width: 100%; z-index: 1000; }
         .login-box { background: white; padding: 35px; border-radius: 20px; text-align: center; width: 90%; max-width: 380px; box-shadow: 0 20px 50px rgba(0,0,0,0.5); }
         
@@ -27,7 +26,6 @@
         .inp { width: 100%; padding: 12px; margin: 8px 0; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; font-size: 14px; outline: none; }
         .inp:focus { border-color: var(--blue); }
 
-        /* Dashboard */
         #dash { display: none; padding: 15px; background: #f8fafc; min-height: 100vh; }
         .header { font-size: 18px; font-weight: bold; padding: 15px; border-radius: 12px; text-align: center; color: white; margin-bottom: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); position: relative; }
         .safe-bg { background: var(--green); }
@@ -48,7 +46,6 @@
         
         #map-frame { width: 100%; height: 300px; border-radius: 12px; border: 1px solid #e2e8f0; }
         .btn { width: 100%; padding: 14px; border-radius: 10px; border: none; color: white; font-weight: bold; cursor: pointer; font-size: 15px; transition: 0.2s; }
-        .btn:active { transform: scale(0.95); }
         .map-link { color: var(--red); font-weight: bold; text-decoration: none; border: 1px solid var(--red); padding: 2px 6px; border-radius: 4px; font-size: 11px; }
 
         @media (max-width: 768px) { .grid { grid-template-columns: 1fr; } }
@@ -127,156 +124,105 @@
             appId: "1:922952133122:web:8da5b17a64aa7c7954551b"
         };
 
-        if (!firebase.apps.length) {
-            firebase.initializeApp(firebaseConfig);
-        }
+        firebase.initializeApp(firebaseConfig);
         const db = firebase.database();
         let authMode = 'login';
         let mqttClient, map, marker;
 
-        // --- 2. AUTHENTICATION ---
+        // --- 2. AUTH ---
         function switchMode(m) {
             authMode = m;
-            document.getElementById('tab-login').classList.toggle('active', m === 'login');
-            document.getElementById('tab-reg').classList.toggle('active', m === 'reg');
+            document.getElementById('tab-login').className = (m === 'login' ? 'tab active' : 'tab');
+            document.getElementById('tab-reg').className = (m === 'reg' ? 'tab active' : 'tab');
             document.getElementById('main-auth-btn').innerText = (m === 'login' ? 'KẾT NỐI HỆ THỐNG' : 'TẠO TÀI KHOẢN MỚI');
-            document.getElementById('auth-error').innerText = "";
         }
 
         function handleAuth() {
             const id = document.getElementById('user_id').value.trim();
             const pass = document.getElementById('user_pass').value.trim();
-            const errorElement = document.getElementById('auth-error');
+            const err = document.getElementById('auth-error');
 
-            if(!id || !pass) {
-                errorElement.innerText = "Vui lòng nhập đủ thông tin!";
-                return;
-            }
+            if(!id || !pass) return err.innerText = "Vui lòng nhập đủ thông tin!";
 
             if(authMode === 'reg') {
-                db.ref('users/' + id).once('value').then((snapshot) => {
-                    if(snapshot.exists()) {
-                        errorElement.innerText = "Mã định danh đã tồn tại!";
-                    } else {
-                        db.ref('users/' + id).set({ password: pass })
-                        .then(() => {
-                            alert("Đăng ký thành công! Hãy đăng nhập.");
-                            switchMode('login');
-                        })
-                        .catch((err) => { 
-                            errorElement.innerText = "Lỗi Firebase: " + err.message; 
-                        });
-                    }
+                db.ref('users/' + id).set({ password: pass }).then(() => {
+                    alert("Đăng ký thành công!");
+                    switchMode('login');
                 });
             } else {
                 db.ref('users/' + id).once('value').then((snapshot) => {
-                    const userData = snapshot.val();
-                    if(userData && userData.password === pass) {
+                    const val = snapshot.val();
+                    if(val && val.password === pass) {
                         document.getElementById('login-page').style.display = 'none';
                         document.getElementById('dash').style.display = 'block';
                         initDashboard();
                     } else {
-                        errorElement.innerText = "Sai mã định danh hoặc mật khẩu!";
+                        err.innerText = "Sai mã định danh hoặc mật khẩu!";
                     }
-                }).catch((err) => {
-                    errorElement.innerText = "Lỗi truy xuất: " + err.message;
                 });
             }
         }
 
-        // --- 3. DASHBOARD INIT ---
+        // --- 3. SYSTEM ---
         function initDashboard() {
-            if (!map) {
-                map = L.map('map-frame').setView([21.0285, 105.8542], 15);
-                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-                marker = L.marker([21.0285, 105.8542]).addTo(map);
-            }
+            map = L.map('map-frame').setView([21.0285, 105.8542], 15);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+            marker = L.marker([21.0285, 105.8542]).addTo(map);
             loadSavedLocalData();
             connectMQTT();
         }
 
         function connectMQTT() {
-            const clientId = "web_sos_" + Math.floor(Math.random() * 10000);
+            const clientId = "web_sos_" + Math.random().toString(16).substr(2, 5);
             mqttClient = new Paho.MQTT.Client("broker.hivemq.com", 8000, clientId);
-            
             mqttClient.onMessageArrived = (msg) => {
-                const payload = msg.payloadString;
-                const p = payload.split('|');
-                if(p[0] === "danger") {
-                    const lat = parseFloat(p[1]), lng = parseFloat(p[2]);
-                    triggerSOS(lat, lng);
-                } else if(p[0] === "safe" || payload === "reset_system") {
-                    resetUI();
-                }
+                const p = msg.payloadString.split('|');
+                if(p[0] === "danger") triggerSOS(parseFloat(p[1]), parseFloat(p[2]));
+                else resetUI();
             };
-
-            mqttClient.onConnectionLost = (responseObject) => {
-                if (responseObject.errorCode !== 0) {
-                    addLog("<span style='color:orange'>Mất kết nối. Đang thử lại...</span>");
-                    setTimeout(connectMQTT, 3000);
-                }
-            };
-
-            mqttClient.connect({ 
-                onSuccess: () => {
-                    addLog("Cloud: Đã kết nối server HiveMQ.");
-                    mqttClient.subscribe("hethong_sos/data");
-                },
-                useSSL: false,
-                keepAliveInterval: 30,
-                onFailure: (err) => {
-                    addLog("MQTT Failure: " + err.errorMessage);
-                }
-            });
+            mqttClient.connect({ onSuccess: () => {
+                addLog("Cloud: Đã kết nối HiveMQ.");
+                mqttClient.subscribe("hethong_sos/data");
+            }});
         }
 
-        // --- 4. UTILS ---
         function triggerSOS(lat, lng) {
-            if(isNaN(lat) || isNaN(lng)) return;
             const header = document.getElementById('st-header');
-            const dash = document.getElementById('dash');
-            
-            document.getElementById('st-text').innerText = "!!! CẢNH BÁO: TAI NẠN KHẨN CẤP !!!";
+            header.innerText = "!!! CẢNH BÁO: TAI NẠN KHẨN CẤP !!!";
             header.className = "header danger-bg";
-            dash.classList.add('body-danger');
-            
-            document.getElementById('pos-info').innerText = lat.toFixed(6) + ", " + lng.toFixed(6);
+            document.getElementById('dash').classList.add('body-danger');
+            document.getElementById('pos-info').innerText = lat + ", " + lng;
             map.setView([lat, lng], 17);
             marker.setLatLng([lat, lng]);
-
-            addLog(`<span style='color:#f87171'>[SOS] Va chạm tại tọa độ ${lat}, ${lng}</span>`);
+            addLog(`[SOS] Va chạm tại ${lat}, ${lng}`);
             saveToLocalHistory(lat, lng);
-            if (navigator.vibrate) navigator.vibrate([500, 200, 500]);
         }
 
         function resetUI() {
             const header = document.getElementById('st-header');
-            document.getElementById('st-text').innerText = "HỆ THỐNG TRỰC TUYẾN: AN TOÀN";
+            header.innerText = "HỆ THỐNG TRỰC TUYẾN: AN TOÀN";
             header.className = "header safe-bg";
             document.getElementById('dash').classList.remove('body-danger');
         }
 
         function sendResetCommand() {
             if(mqttClient && mqttClient.isConnected()) {
-                const message = new Paho.MQTT.Message("reset_system");
-                message.destinationName = "hethong_sos/lenh";
-                mqttClient.send(message);
+                const msg = new Paho.MQTT.Message("reset_system");
+                msg.destinationName = "hethong_sos/lenh";
+                mqttClient.send(msg);
                 resetUI();
-                addLog("Đã gửi lệnh xác nhận an toàn.");
-            } else {
-                addLog("Chưa kết nối MQTT.");
+                addLog("Đã gửi xác nhận an toàn.");
             }
         }
 
         function addLog(content) {
             const box = document.getElementById('logs');
-            const time = new Date().toLocaleTimeString('vi-VN');
-            box.innerHTML += `<div>[${time}] ${content}</div>`;
+            box.innerHTML += `<div>[${new Date().toLocaleTimeString()}] ${content}</div>`;
             box.scrollTop = box.scrollHeight;
         }
 
         function saveToLocalHistory(lat, lng) {
-            const time = new Date().toLocaleString('vi-VN');
+            const time = new Date().toLocaleString();
             let history = JSON.parse(localStorage.getItem('sos_history') || "[]");
             history.push({time, lat, lng});
             localStorage.setItem('sos_history', JSON.stringify(history));
@@ -286,23 +232,18 @@
         function renderHistoryRow(time, lat, lng) {
             const table = document.getElementById('history-body');
             const link = `https://www.google.com/maps?q=${lat},${lng}`;
-            const row = `<tr><td>${time}</td><td style="color:red;font-weight:bold">Sự cố</td><td><a href="${link}" target="_blank" class="map-link">Bản đồ</a></td></tr>`;
+            const row = `<tr><td>${time}</td><td style="color:red">Sự cố</td><td><a href="${link}" target="_blank" class="map-link">Vị trí</a></td></tr>`;
             table.insertAdjacentHTML('afterbegin', row);
         }
 
         function loadSavedLocalData() {
-            const table = document.getElementById('history-body');
-            table.innerHTML = "";
             const history = JSON.parse(localStorage.getItem('sos_history') || "[]");
             history.forEach(item => renderHistoryRow(item.time, item.lat, item.lng));
-            addLog("Hệ thống sẵn sàng giám sát.");
+            addLog("Sẵn sàng.");
         }
 
         function clearLocalData() {
-            if(confirm("Xóa toàn bộ lịch sử sự cố?")) {
-                localStorage.removeItem('sos_history');
-                loadSavedLocalData();
-            }
+            if(confirm("Xóa lịch sử?")) { localStorage.removeItem('sos_history'); location.reload(); }
         }
     </script>
 </body>
