@@ -89,7 +89,7 @@
                 </div>
                 
                 <div class="card">
-                    <h3><i class="fas fa-history"></i> Lịch sử sự cố (Lưu máy này)</h3>
+                    <h3><i class="fas fa-history"></i> Lịch sử sự cố</h3>
                     <div style="max-height: 180px; overflow-y: auto;">
                         <table class="history-table">
                             <tbody id="history-body"></tbody>
@@ -104,7 +104,7 @@
                     <button class="btn" style="background: #334155;" onclick="sendResetCommand()">
                         <i class="fas fa-sync-alt"></i> XÁC NHẬN AN TOÀN
                     </button>
-                    <button onclick="clearLocalData()" style="margin-top:15px; background:none; border:none; color:#94a3b8; cursor:pointer; font-size:11px; width: 100%;">Xóa lịch sử trên trình duyệt</button>
+                    <button onclick="clearLocalData()" style="margin-top:15px; background:none; border:none; color:#94a3b8; cursor:pointer; font-size:11px; width: 100%;">Xóa lịch sử hệ thống</button>
                 </div>
 
                 <div class="card">
@@ -149,7 +149,6 @@
             if(!id || !pass) return errorElement.innerText = "Vui lòng nhập đủ thông tin!";
 
             if(authMode === 'reg') {
-                // Đăng ký: Kiểm tra xem user đã tồn tại chưa
                 db.ref('users/' + id).once('value').then((snapshot) => {
                     if(snapshot.exists()) {
                         errorElement.innerText = "Mã định danh đã tồn tại!";
@@ -161,7 +160,6 @@
                     }
                 });
             } else {
-                // Đăng nhập: Sửa lỗi logic so sánh
                 db.ref('users/' + id).once('value').then((snapshot) => {
                     const userData = snapshot.val();
                     if(userData && userData.password === pass) {
@@ -173,14 +171,12 @@
                     }
                 }).catch(err => {
                     errorElement.innerText = "Lỗi truy xuất dữ liệu!";
-                    console.error(err);
                 });
             }
         }
 
         // --- 3. DASHBOARD INIT ---
         function initDashboard() {
-            // Khởi tạo Map
             map = L.map('map-frame').setView([21.0285, 105.8542], 15);
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
             marker = L.marker([21.0285, 105.8542]).addTo(map);
@@ -194,7 +190,6 @@
             mqttClient = new Paho.MQTT.Client("broker.hivemq.com", 8000, clientId);
             
             mqttClient.onMessageArrived = (msg) => {
-                console.log("MQTT Received:", msg.payloadString);
                 const p = msg.payloadString.split('|');
                 if(p[0] === "danger") {
                     const lat = parseFloat(p[1]), lng = parseFloat(p[2]);
@@ -204,8 +199,7 @@
                 }
             };
 
-            mqttClient.onConnectionLost = (err) => {
-                addLog("<span style='color:orange'>Mất kết nối MQTT. Đang thử lại...</span>");
+            mqttClient.onConnectionLost = () => {
                 setTimeout(connectMQTT, 5000);
             };
 
@@ -221,7 +215,6 @@
         // --- 4. UTILS ---
         function triggerSOS(lat, lng) {
             if(isNaN(lat) || isNaN(lng)) return;
-
             const header = document.getElementById('st-header');
             const dash = document.getElementById('dash');
             
@@ -230,7 +223,6 @@
             dash.classList.add('body-danger');
             
             document.getElementById('pos-info').innerText = lat.toFixed(6) + ", " + lng.toFixed(6);
-            
             map.setView([lat, lng], 17);
             marker.setLatLng([lat, lng]);
 
@@ -248,13 +240,9 @@
 
         function sendResetCommand() {
             if(mqttClient && mqttClient.isConnected()) {
-                const message = new Paho.MQTT.Message("reset_system");
-                message.destinationName = "hethong_sos/lenh";
-                mqttClient.send(message);
+                mqttClient.send(new Paho.MQTT.Message("reset_system") {{ destinationName: "hethong_sos/lenh" }});
                 resetUI();
                 addLog("Đã gửi lệnh xác nhận an toàn.");
-            } else {
-                alert("Chưa kết nối MQTT Server!");
             }
         }
 
@@ -268,7 +256,6 @@
         function saveToLocalHistory(lat, lng) {
             const time = new Date().toLocaleString('vi-VN');
             let history = JSON.parse(localStorage.getItem('sos_history') || "[]");
-            // Tránh lưu trùng lặp dữ liệu trong thời gian ngắn
             if(history.length > 0 && history[history.length-1].lat === lat) return;
             
             history.push({time, lat, lng});
@@ -290,7 +277,7 @@
         }
 
         function clearLocalData() {
-            if(confirm("Xóa toàn bộ lịch sử sự cố trên máy này?")) {
+            if(confirm("Xóa toàn bộ lịch sử sự cố?")) {
                 localStorage.removeItem('sos_history');
                 location.reload();
             }
