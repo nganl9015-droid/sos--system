@@ -2,8 +2,8 @@
 <html lang="vi">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Hệ Thống Giám Sát SOS - Bản Hoàn Thiện 2026</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hệ Thống SOS Hoàn Thiện</title>
     
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
@@ -13,112 +13,71 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <style>
-        :root { --blue: #2563eb; --red: #ef4444; --green: #22c55e; --dark: #0f172a; --card: #ffffff; }
-        body { font-family: 'Inter', system-ui, sans-serif; background: var(--dark); margin: 0; color: #1e293b; }
+        :root { --blue: #2563eb; --red: #ef4444; --green: #22c55e; --dark: #0f172a; }
+        body { font-family: 'Inter', sans-serif; background: var(--dark); margin: 0; color: #1e293b; }
         
-        /* Màn hình đăng nhập */
         #login-page { height: 100vh; display: flex; justify-content: center; align-items: center; background: radial-gradient(circle, #1e293b 0%, #020617 100%); position: fixed; width: 100%; z-index: 9999; }
-        .login-box { background: white; padding: 40px; border-radius: 24px; text-align: center; width: 90%; max-width: 400px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5); }
-        .tab-group { display: flex; background: #f1f5f9; border-radius: 12px; padding: 4px; margin-bottom: 24px; }
-        .tab { flex: 1; padding: 12px; cursor: pointer; border-radius: 10px; font-weight: 600; color: #64748b; transition: 0.3s; }
-        .tab.active { background: white; color: var(--blue); box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
-        .inp { width: 100%; padding: 14px; margin: 10px 0; border: 1px solid #e2e8f0; border-radius: 12px; box-sizing: border-box; font-size: 15px; outline: none; transition: 0.2s; }
-        .inp:focus { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(37,99,235,0.1); }
+        .login-box { background: white; padding: 40px; border-radius: 24px; text-align: center; width: 350px; }
+        .inp { width: 100%; padding: 14px; margin: 10px 0; border: 1px solid #e2e8f0; border-radius: 12px; box-sizing: border-box; }
 
-        /* Dashboard chính */
         #dash { display: none; padding: 20px; background: #f8fafc; min-height: 100vh; }
-        .header { padding: 20px; border-radius: 20px; text-align: center; color: white; margin-bottom: 24px; position: relative; font-weight: 800; font-size: 20px; letter-spacing: 1px; }
+        .header { padding: 20px; border-radius: 20px; text-align: center; color: white; margin-bottom: 24px; font-weight: 800; font-size: 20px; }
         .safe-bg { background: linear-gradient(135deg, #22c55e 0%, #15803d 100%); }
-        .danger-bg { background: linear-gradient(135deg, #ef4444 0%, #b91c1c 100%); animation: pulse 1.5s infinite; }
-        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.8; } 100% { opacity: 1; } }
-        
-        .logout-btn { position: absolute; right: 20px; top: 18px; background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.4); padding: 6px 16px; border-radius: 10px; font-size: 13px; cursor: pointer; color: white; }
+        .danger-bg { background: linear-gradient(135deg, #ef4444 0%, #b91c1c 100%); animation: pulse 1s infinite; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.8; } }
         
         .grid { display: grid; grid-template-columns: 1.5fr 1fr; gap: 24px; }
-        .card { background: white; padding: 24px; border-radius: 20px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); border: 1px solid #f1f5f9; }
-        h3 { margin: 0 0 20px 0; font-size: 16px; display: flex; align-items: center; gap: 10px; color: #334155; }
+        .card { background: white; padding: 24px; border-radius: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 20px; }
+        #map-frame { width: 100%; height: 350px; border-radius: 16px; border: 1px solid #ddd; }
+        #logs { background: #0f172a; color: #38bdf8; padding: 15px; height: 150px; overflow-y: auto; font-family: monospace; border-radius: 12px; font-size: 12px; }
         
-        #map-frame { width: 100%; height: 350px; border-radius: 16px; z-index: 1; }
-        #logs { background: #0f172a; color: #38bdf8; padding: 15px; height: 200px; overflow-y: auto; font-family: 'Fira Code', monospace; border-radius: 12px; font-size: 12px; line-height: 1.6; }
+        .btn { width: 100%; padding: 16px; border-radius: 12px; border: none; color: white; font-weight: 700; cursor: pointer; background: var(--blue); }
+        .btn-reset { background: #334155; margin-top: 10px; }
         
-        .btn { width: 100%; padding: 16px; border-radius: 12px; border: none; color: white; font-weight: 700; cursor: pointer; font-size: 16px; transition: 0.2s; background: var(--blue); }
-        .btn:active { transform: scale(0.98); }
-        .btn-reset { background: #334155; }
-        
-        .history-table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-        .history-table td { padding: 12px 8px; border-bottom: 1px solid #f1f5f9; font-size: 13px; }
-        .map-link { color: var(--red); font-weight: 700; text-decoration: none; padding: 4px 10px; border: 1px solid var(--red); border-radius: 6px; }
-
-        @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
+        .history-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        .history-table td { padding: 10px; border-bottom: 1px solid #f1f5f9; }
     </style>
 </head>
-<body>
+<body onclick="activateAudio()">
 
-    <audio id="alarm-sound" loop>
-        <source src="https://www.soundjay.com/buttons/beep-01a.mp3" type="audio/mpeg">
+    <audio id="alarm-sound" loop preload="auto">
+        <source src="https://actions.google.com/sounds/v1/alarms/emergency_it_is_an_emergency.ogg" type="audio/ogg">
     </audio>
 
     <div id="login-page">
         <div class="login-box">
-            <div style="background: #eff6ff; width: 70px; height: 70px; border-radius: 20px; display: flex; align-items: center; justify-content: center; margin: 0 auto 20px;">
-                <i class="fas fa-satellite-dish" style="font-size: 30px; color: var(--blue);"></i>
-            </div>
-            <h2>Hệ Thống SOS</h2>
-            <p style="color: #64748b; font-size: 14px; margin-bottom: 24px;">Giám sát an toàn phương tiện 24/7</p>
-            
-            <div class="tab-group">
-                <div class="tab active" id="tab-login" onclick="switchMode('login')">Đăng nhập</div>
-                <div class="tab" id="tab-reg" onclick="switchMode('reg')">Đăng ký</div>
-            </div>
-
-            <input type="text" id="user_id" class="inp" placeholder="Mã định danh (VD: xe01)">
+            <h2 style="color: var(--blue)">Hệ Thống SOS 2026</h2>
+            <input type="text" id="user_id" class="inp" placeholder="Nhập ID xe (VD: xe01)">
             <input type="password" id="user_pass" class="inp" placeholder="Mật khẩu">
-            
-            <button class="btn" id="main-auth-btn" onclick="handleAuth()">TRUY CẬP HỆ THỐNG</button>
-            <p id="auth-error" style="color: var(--red); font-size: 13px; margin-top: 15px; font-weight: 500;"></p>
+            <button class="btn" onclick="handleAuth()">ĐĂNG NHẬP</button>
+            <p id="auth-error" style="color: red; font-size: 12px;"></p>
         </div>
     </div>
 
     <div id="dash">
         <div id="st-header" class="header safe-bg">
             <span id="st-text"><i class="fas fa-check-circle"></i> TRẠNG THÁI: AN TOÀN</span>
-            <div class="logout-btn" onclick="location.reload()">Đăng xuất</div>
         </div>
         
         <div class="grid">
             <div class="left">
                 <div class="card">
-                    <h3><i class="fas fa-map-marked-alt"></i> Vị trí thời gian thực</h3>
+                    <h3><i class="fas fa-map-marker-alt"></i> Vị trí thời gian thực</h3>
                     <div id="map-frame"></div>
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 15px; padding: 10px; background: #f1f5f9; border-radius: 10px;">
-                        <span style="font-size: 13px; color: #64748b;">Tọa độ hiện tại:</span>
-                        <span id="pos-info" style="font-weight: 700; color: var(--blue);">--.------, --.------</span>
-                    </div>
+                    <p style="font-size: 13px; margin-top:10px;">Tọa độ: <span id="pos-info" style="font-weight:bold">--.------, --.------</span></p>
                 </div>
-
                 <div class="card">
                     <h3><i class="fas fa-history"></i> Nhật ký sự cố</h3>
-                    <div style="max-height: 250px; overflow-y: auto;">
-                        <table class="history-table">
-                            <tbody id="history-body"></tbody>
-                        </table>
-                    </div>
+                    <table class="history-table"><tbody id="history-body"></tbody></table>
                 </div>
             </div>
-
             <div class="right">
                 <div class="card">
-                    <h3><i class="fas fa-tools"></i> Trung tâm điều khiển</h3>
-                    <button class="btn btn-reset" onclick="sendResetCommand()">
-                        <i class="fas fa-shield-virus"></i> XÁC NHẬN AN TOÀN (RESET)
-                    </button>
-                    <p style="font-size: 12px; color: #94a3b8; text-align: center; margin-top: 15px;">
-                        Lệnh này sẽ tắt còi trên xe và dừng báo động Web.
-                    </p>
+                    <h3><i class="fas fa-tools"></i> Điều khiển</h3>
+                    <button class="btn btn-reset" onclick="sendResetCommand()">XÁC NHẬN AN TOÀN (RESET)</button>
                 </div>
-
                 <div class="card">
-                    <h3><i class="fas fa-code"></i> Console Logs</h3>
+                    <h3><i class="fas fa-terminal"></i> Console Logs</h3>
                     <div id="logs"></div>
                 </div>
             </div>
@@ -126,7 +85,7 @@
     </div>
 
     <script>
-        // 1. CẤU HÌNH FIREBASE
+        // CẤU HÌNH FIREBASE (GIỮ NGUYÊN CỦA BẠN)
         const firebaseConfig = {
             apiKey: "AIzaSyChyZAmeBu2WLwsEzVrWFULbTYpl-nG0fE",
             authDomain: "hethongsos.firebaseapp.com",
@@ -136,149 +95,88 @@
             messagingSenderId: "922952133122",
             appId: "1:922952133122:web:8da5b17a64aa7c7954551b"
         };
-
         firebase.initializeApp(firebaseConfig);
         const db = firebase.database();
 
-        let authMode = 'login', mqttClient, map, marker;
-        let current_id = ""; 
+        let mqttClient, map, marker, current_id = "";
+        const audio = document.getElementById('alarm-sound');
 
-        // 2. CHỨC NĂNG ĐĂNG NHẬP/ĐĂNG KÝ
-        function switchMode(m) {
-            authMode = m;
-            document.getElementById('tab-login').className = (m === 'login' ? 'tab active' : 'tab');
-            document.getElementById('tab-reg').className = (m === 'reg' ? 'tab active' : 'tab');
-            document.getElementById('main-auth-btn').innerText = (m === 'login' ? 'TRUY CẬP HỆ THỐNG' : 'TẠO TÀI KHOẢN MỚI');
+        // Click để kích hoạt âm thanh (Bắt buộc do trình duyệt chặn)
+        function activateAudio() {
+            audio.play().then(() => { audio.pause(); }).catch(e => {});
         }
 
         function handleAuth() {
             const id = document.getElementById('user_id').value.trim().toLowerCase();
             const pass = document.getElementById('user_pass').value.trim();
-            if(!id || !pass) {
-                document.getElementById('auth-error').innerText = "Vui lòng nhập đủ thông tin!";
-                return;
-            }
-
-            if(authMode === 'reg') {
-                db.ref('users/' + id).set({ password: pass }).then(() => {
-                    alert("Đăng ký thành công ID xe: " + id);
-                    switchMode('login');
-                });
-            } else {
-                db.ref('users/' + id).once('value').then((s) => {
-                    const userData = s.val();
-                    if(userData && userData.password === pass) {
-                        current_id = id; 
-                        document.getElementById('login-page').style.display = 'none';
-                        document.getElementById('dash').style.display = 'block';
-                        initDashboard();
-                    } else {
-                        document.getElementById('auth-error').innerText = "Sai ID xe hoặc mật khẩu!";
-                    }
-                });
-            }
+            db.ref('users/' + id).once('value').then((s) => {
+                const data = s.val();
+                if(data && data.password === pass) {
+                    current_id = id;
+                    document.getElementById('login-page').style.display = 'none';
+                    document.getElementById('dash').style.display = 'block';
+                    initDash();
+                } else { document.getElementById('auth-error').innerText = "Sai thông tin!"; }
+            });
         }
 
-        // 3. KHỞI TẠO DASHBOARD
-        function initDashboard() {
-            // Mặc định Hà Nội
+        function initDash() {
             map = L.map('map-frame').setView([21.0285, 105.8542], 15);
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
             marker = L.marker([21.0285, 105.8542]).addTo(map);
-
-            addLog("Đã kết nối với hệ thống xe: " + current_id);
             connectMQTT();
         }
 
         function connectMQTT() {
-            const clientId = "web_client_" + current_id + "_" + Math.random().toString(16).substr(2, 4);
-            mqttClient = new Paho.MQTT.Client("broker.hivemq.com", Number(8884), clientId);
-            
-            const MY_TOPIC_DATA = "sos_system/" + current_id + "/data";
-
+            mqttClient = new Paho.MQTT.Client("broker.hivemq.com", Number(8884), "client_" + Math.random().toString(16).substr(2, 8));
             mqttClient.onMessageArrived = (msg) => {
-                const payload = msg.payloadString;
-                
-                if(payload.startsWith("danger")) {
-                    const parts = payload.split('|');
-                    const lat = parseFloat(parts[1]);
-                    const lng = parseFloat(parts[2]);
-                    if(!isNaN(lat)) triggerSOS(lat, lng);
-                } else if(payload === "safe") {
-                    resetUI(); 
-                }
+                const p = msg.payloadString;
+                if(p.startsWith("danger")) {
+                    const d = p.split('|');
+                    triggerSOS(parseFloat(d[1]), parseFloat(d[2]));
+                } else if(p === "safe") { resetUI(); }
             };
-
-            mqttClient.onConnectionLost = () => {
-                addLog("<span style='color:orange'>Mất kết nối Cloud. Đang thử lại...</span>");
-                setTimeout(connectMQTT, 5000);
-            };
-
             mqttClient.connect({ 
-                onSuccess: () => {
-                    addLog("<span style='color:#22c55e'>Đã kết nối MQTT Luồng: " + current_id + "</span>");
-                    mqttClient.subscribe(MY_TOPIC_DATA);
-                },
-                useSSL: true
+                onSuccess: () => { 
+                    mqttClient.subscribe("sos_system/" + current_id + "/data");
+                    addLog("Đã kết nối dữ liệu xe: " + current_id);
+                }, 
+                useSSL: true 
             });
         }
 
-        // 4. XỬ LÝ BÁO ĐỘNG
         function triggerSOS(lat, lng) {
-            const header = document.getElementById('st-header');
-            const alarm = document.getElementById('alarm-sound');
-
-            document.getElementById('st-text').innerHTML = '<i class="fas fa-exclamation-triangle"></i> CẢNH BÁO: PHÁT HIỆN TAI NẠN!';
-            header.className = "header danger-bg";
+            document.getElementById('st-header').className = "header danger-bg";
+            document.getElementById('st-text').innerHTML = "!!! CẢNH BÁO TAI NẠN !!!";
+            audio.play(); // PHÁT CÒI HÚ TRÊN WEB
             
-            // Phát âm thanh báo động
-            alarm.play().catch(e => console.log("Cần nhấp chuột vào web để phát tiếng"));
-
-            document.getElementById('pos-info').innerText = lat.toFixed(6) + ", " + lng.toFixed(6);
             map.setView([lat, lng], 17);
             marker.setLatLng([lat, lng]);
+            document.getElementById('pos-info').innerText = lat.toFixed(6) + ", " + lng.toFixed(6);
 
             const time = new Date().toLocaleTimeString();
-            const gMapLink = `https://www.google.com/maps?q=${lat},${lng}`;
-            const row = `<tr>
-                <td>${time}</td>
-                <td style="color:var(--red); font-weight:700">CẢNH BÁO SOS</td>
-                <td><a href="${gMapLink}" target="_blank" class="map-link">BẢN ĐỒ</a></td>
-            </tr>`;
+            const row = `<tr><td>${time}</td><td style="color:red">SỰ CỐ</td><td><a href="https://www.google.com/maps?q=${lat},${lng}" target="_blank">BẢN ĐỒ</a></td></tr>`;
             document.getElementById('history-body').insertAdjacentHTML('afterbegin', row);
-            
-            addLog("<span style='color:var(--red)'>[SOS] Xe gặp sự cố tại: " + lat + ", " + lng + "</span>");
         }
 
         function resetUI() {
-            const alarm = document.getElementById('alarm-sound');
-            
-            document.getElementById('st-text').innerHTML = '<i class="fas fa-check-circle"></i> TRẠNG THÁI: AN TOÀN';
             document.getElementById('st-header').className = "header safe-bg";
-            
-            // Dừng âm thanh
-            alarm.pause();
-            alarm.currentTime = 0;
-
-            addLog("Hệ thống: Trạng thái an toàn đã được xác lập.");
+            document.getElementById('st-text').innerHTML = "TRẠNG THÁI: AN TOÀN";
+            audio.pause();
+            audio.currentTime = 0;
         }
 
         function sendResetCommand() {
-            const MY_TOPIC_CMD = "sos_system/" + current_id + "/lenh";
-            if(mqttClient && mqttClient.isConnected()) {
-                const message = new Paho.MQTT.Message("reset_system");
-                message.destinationName = MY_TOPIC_CMD;
-                mqttClient.send(message);
-                resetUI();
-            } else {
-                alert("Không có kết nối tới Cloud!");
-            }
+            const msg = new Paho.MQTT.Message("reset_system");
+            msg.destinationName = "sos_system/" + current_id + "/lenh";
+            mqttClient.send(msg);
+            resetUI();
         }
 
-        function addLog(content) {
-            const box = document.getElementById('logs');
-            box.innerHTML += `<div>[${new Date().toLocaleTimeString()}] ${content}</div>`;
-            box.scrollTop = box.scrollHeight;
+        function addLog(c) {
+            const b = document.getElementById('logs');
+            b.innerHTML += `<div>[${new Date().toLocaleTimeString()}] ${c}</div>`;
+            b.scrollTop = b.scrollHeight;
         }
     </script>
 </body>
