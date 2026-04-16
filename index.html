@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Hệ Thống Giám Sát SOS - 2026</title>
+    <title>Hệ Thống Giám Sát SOS - Bản Hoàn Thiện 2026</title>
     
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
@@ -54,12 +54,16 @@
 </head>
 <body>
 
+    <audio id="alarm-sound" loop>
+        <source src="https://www.soundjay.com/buttons/beep-01a.mp3" type="audio/mpeg">
+    </audio>
+
     <div id="login-page">
         <div class="login-box">
             <div style="background: #eff6ff; width: 70px; height: 70px; border-radius: 20px; display: flex; align-items: center; justify-content: center; margin: 0 auto 20px;">
                 <i class="fas fa-satellite-dish" style="font-size: 30px; color: var(--blue);"></i>
             </div>
-            <h2 style="margin-bottom: 8px;">Hệ Thống SOS</h2>
+            <h2>Hệ Thống SOS</h2>
             <p style="color: #64748b; font-size: 14px; margin-bottom: 24px;">Giám sát an toàn phương tiện 24/7</p>
             
             <div class="tab-group">
@@ -67,7 +71,7 @@
                 <div class="tab" id="tab-reg" onclick="switchMode('reg')">Đăng ký</div>
             </div>
 
-            <input type="text" id="user_id" class="inp" placeholder="Mã định danh (ID xe)">
+            <input type="text" id="user_id" class="inp" placeholder="Mã định danh (VD: xe01)">
             <input type="password" id="user_pass" class="inp" placeholder="Mật khẩu">
             
             <button class="btn" id="main-auth-btn" onclick="handleAuth()">TRUY CẬP HỆ THỐNG</button>
@@ -109,7 +113,7 @@
                         <i class="fas fa-shield-virus"></i> XÁC NHẬN AN TOÀN (RESET)
                     </button>
                     <p style="font-size: 12px; color: #94a3b8; text-align: center; margin-top: 15px;">
-                        Nút này sẽ gửi lệnh tắt còi báo động trên thiết bị.
+                        Lệnh này sẽ tắt còi trên xe và dừng báo động Web.
                     </p>
                 </div>
 
@@ -122,7 +126,7 @@
     </div>
 
     <script>
-        // 1. CẤU HÌNH FIREBASE (GIỮ NGUYÊN)
+        // 1. CẤU HÌNH FIREBASE
         const firebaseConfig = {
             apiKey: "AIzaSyChyZAmeBu2WLwsEzVrWFULbTYpl-nG0fE",
             authDomain: "hethongsos.firebaseapp.com",
@@ -137,9 +141,9 @@
         const db = firebase.database();
 
         let authMode = 'login', mqttClient, map, marker;
-        let current_id = ""; // Lưu ID xe để kết nối đúng luồng dữ liệu
+        let current_id = ""; 
 
-        // 2. QUẢN LÝ ĐĂNG NHẬP
+        // 2. CHỨC NĂNG ĐĂNG NHẬP/ĐĂNG KÝ
         function switchMode(m) {
             authMode = m;
             document.getElementById('tab-login').className = (m === 'login' ? 'tab active' : 'tab');
@@ -148,53 +152,52 @@
         }
 
         function handleAuth() {
-            const id = document.getElementById('user_id').value.trim();
+            const id = document.getElementById('user_id').value.trim().toLowerCase();
             const pass = document.getElementById('user_pass').value.trim();
             if(!id || !pass) {
-                document.getElementById('auth-error').innerText = "Vui lòng nhập đủ ID và mật khẩu!";
+                document.getElementById('auth-error').innerText = "Vui lòng nhập đủ thông tin!";
                 return;
             }
 
             if(authMode === 'reg') {
                 db.ref('users/' + id).set({ password: pass }).then(() => {
-                    alert("Đăng ký thành công!");
+                    alert("Đăng ký thành công ID xe: " + id);
                     switchMode('login');
                 });
             } else {
                 db.ref('users/' + id).once('value').then((s) => {
                     const userData = s.val();
                     if(userData && userData.password === pass) {
-                        current_id = id; // Chốt ID xe
+                        current_id = id; 
                         document.getElementById('login-page').style.display = 'none';
                         document.getElementById('dash').style.display = 'block';
                         initDashboard();
                     } else {
-                        document.getElementById('auth-error').innerText = "Sai tài khoản hoặc mật khẩu!";
+                        document.getElementById('auth-error').innerText = "Sai ID xe hoặc mật khẩu!";
                     }
                 });
             }
         }
 
-        // 3. KHỞI TẠO HỆ THỐNG
+        // 3. KHỞI TẠO DASHBOARD
         function initDashboard() {
+            // Mặc định Hà Nội
             map = L.map('map-frame').setView([21.0285, 105.8542], 15);
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
             marker = L.marker([21.0285, 105.8542]).addTo(map);
 
-            addLog("Đã đăng nhập vào xe: " + current_id);
+            addLog("Đã kết nối với hệ thống xe: " + current_id);
             connectMQTT();
         }
 
         function connectMQTT() {
-            const clientId = "web_" + current_id + "_" + Math.random().toString(16).substr(2, 4);
+            const clientId = "web_client_" + current_id + "_" + Math.random().toString(16).substr(2, 4);
             mqttClient = new Paho.MQTT.Client("broker.hivemq.com", Number(8884), clientId);
             
-            // Topic động theo ID xe
-            const topic_data = "sos_system/" + current_id + "/data";
+            const MY_TOPIC_DATA = "sos_system/" + current_id + "/data";
 
             mqttClient.onMessageArrived = (msg) => {
                 const payload = msg.payloadString;
-                console.log("Dữ liệu nhận được:", payload);
                 
                 if(payload.startsWith("danger")) {
                     const parts = payload.split('|');
@@ -202,62 +205,73 @@
                     const lng = parseFloat(parts[2]);
                     if(!isNaN(lat)) triggerSOS(lat, lng);
                 } else if(payload === "safe") {
-                    resetUI(); // Nhận "safe" từ ESP32 (do ấn nút) thì xanh lại
+                    resetUI(); 
                 }
             };
 
             mqttClient.onConnectionLost = () => {
+                addLog("<span style='color:orange'>Mất kết nối Cloud. Đang thử lại...</span>");
                 setTimeout(connectMQTT, 5000);
             };
 
             mqttClient.connect({ 
                 onSuccess: () => {
-                    addLog("<span style='color:#22c55e'>Cloud: Đã kết nối kênh " + current_id + "</span>");
-                    mqttClient.subscribe(topic_data);
+                    addLog("<span style='color:#22c55e'>Đã kết nối MQTT Luồng: " + current_id + "</span>");
+                    mqttClient.subscribe(MY_TOPIC_DATA);
                 },
                 useSSL: true
             });
         }
 
-        // 4. XỬ LÝ SOS
+        // 4. XỬ LÝ BÁO ĐỘNG
         function triggerSOS(lat, lng) {
             const header = document.getElementById('st-header');
-            document.getElementById('st-text').innerHTML = '<i class="fas fa-exclamation-triangle"></i> CẢNH BÁO: TAI NẠN!';
+            const alarm = document.getElementById('alarm-sound');
+
+            document.getElementById('st-text').innerHTML = '<i class="fas fa-exclamation-triangle"></i> CẢNH BÁO: PHÁT HIỆN TAI NẠN!';
             header.className = "header danger-bg";
             
+            // Phát âm thanh báo động
+            alarm.play().catch(e => console.log("Cần nhấp chuột vào web để phát tiếng"));
+
             document.getElementById('pos-info').innerText = lat.toFixed(6) + ", " + lng.toFixed(6);
             map.setView([lat, lng], 17);
             marker.setLatLng([lat, lng]);
 
             const time = new Date().toLocaleTimeString();
-            // Sửa link bản đồ cho chuẩn
             const gMapLink = `https://www.google.com/maps?q=${lat},${lng}`;
             const row = `<tr>
                 <td>${time}</td>
-                <td style="color:var(--red); font-weight:700">TAI NẠN</td>
+                <td style="color:var(--red); font-weight:700">CẢNH BÁO SOS</td>
                 <td><a href="${gMapLink}" target="_blank" class="map-link">BẢN ĐỒ</a></td>
             </tr>`;
             document.getElementById('history-body').insertAdjacentHTML('afterbegin', row);
             
-            addLog("<span style='color:var(--red)'>[SOS] Vị trí: " + lat + ", " + lng + "</span>");
-            if (navigator.vibrate) navigator.vibrate([500, 200, 500]);
+            addLog("<span style='color:var(--red)'>[SOS] Xe gặp sự cố tại: " + lat + ", " + lng + "</span>");
         }
 
         function resetUI() {
+            const alarm = document.getElementById('alarm-sound');
+            
             document.getElementById('st-text').innerHTML = '<i class="fas fa-check-circle"></i> TRẠNG THÁI: AN TOÀN';
             document.getElementById('st-header').className = "header safe-bg";
-            addLog("Hệ thống: Đã xác nhận an toàn.");
+            
+            // Dừng âm thanh
+            alarm.pause();
+            alarm.currentTime = 0;
+
+            addLog("Hệ thống: Trạng thái an toàn đã được xác lập.");
         }
 
         function sendResetCommand() {
-            const topic_cmd = "sos_system/" + current_id + "/lenh";
+            const MY_TOPIC_CMD = "sos_system/" + current_id + "/lenh";
             if(mqttClient && mqttClient.isConnected()) {
                 const message = new Paho.MQTT.Message("reset_system");
-                message.destinationName = topic_cmd;
+                message.destinationName = MY_TOPIC_CMD;
                 mqttClient.send(message);
                 resetUI();
             } else {
-                alert("Lỗi kết nối Cloud!");
+                alert("Không có kết nối tới Cloud!");
             }
         }
 
