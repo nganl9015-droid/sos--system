@@ -35,21 +35,19 @@
         .logout-btn { position: absolute; right: 20px; top: 18px; background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.4); padding: 6px 16px; border-radius: 10px; font-size: 13px; cursor: pointer; color: white; }
         
         .grid { display: grid; grid-template-columns: 1.5fr 1fr; gap: 24px; }
-        .card { background: white; padding: 24px; border-radius: 20px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); border: 1px solid #f1f5f9; margin-bottom: 20px; }
+        .card { background: white; padding: 24px; border-radius: 20px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); border: 1px solid #f1f5f9; }
         h3 { margin: 0 0 20px 0; font-size: 16px; display: flex; align-items: center; gap: 10px; color: #334155; }
         
-        #map-frame { width: 100%; height: 350px; border-radius: 16px; z-index: 1; border: 1px solid #e2e8f0; }
-        #logs { background: #0f172a; color: #38bdf8; padding: 15px; height: 200px; overflow-y: auto; font-family: 'Fira Code', monospace; border-radius: 12px; font-size: 12px; line-height: 1.6; text-align: left; }
+        #map-frame { width: 100%; height: 350px; border-radius: 16px; z-index: 1; }
+        #logs { background: #0f172a; color: #38bdf8; padding: 15px; height: 200px; overflow-y: auto; font-family: 'Fira Code', monospace; border-radius: 12px; font-size: 12px; line-height: 1.6; }
         
         .btn { width: 100%; padding: 16px; border-radius: 12px; border: none; color: white; font-weight: 700; cursor: pointer; font-size: 16px; transition: 0.2s; background: var(--blue); }
         .btn:active { transform: scale(0.98); }
-        .btn-reset { background: #334155; margin-top: 10px; }
-        .btn-reset:hover { background: #1e293b; }
+        .btn-reset { background: #334155; }
         
         .history-table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-        .history-table td { padding: 12px 8px; border-bottom: 1px solid #f1f5f9; font-size: 13px; text-align: left; }
-        .map-link { color: var(--red); font-weight: 700; text-decoration: none; padding: 4px 10px; border: 1px solid var(--red); border-radius: 6px; white-space: nowrap; }
-        .map-link:hover { background: var(--red); color: white; }
+        .history-table td { padding: 12px 8px; border-bottom: 1px solid #f1f5f9; font-size: 13px; }
+        .map-link { color: var(--red); font-weight: 700; text-decoration: none; padding: 4px 10px; border: 1px solid var(--red); border-radius: 6px; }
 
         @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
     </style>
@@ -69,7 +67,7 @@
                 <div class="tab" id="tab-reg" onclick="switchMode('reg')">Đăng ký</div>
             </div>
 
-            <input type="text" id="user_id" class="inp" placeholder="Mã định danh (ID)">
+            <input type="text" id="user_id" class="inp" placeholder="Mã định danh (ID xe)">
             <input type="password" id="user_pass" class="inp" placeholder="Mật khẩu">
             
             <button class="btn" id="main-auth-btn" onclick="handleAuth()">TRUY CẬP HỆ THỐNG</button>
@@ -124,7 +122,7 @@
     </div>
 
     <script>
-        // 1. CẤU HÌNH THÔNG SỐ (GIỮ NGUYÊN FIREBASE CỦA BẠN)
+        // 1. CẤU HÌNH FIREBASE (GIỮ NGUYÊN)
         const firebaseConfig = {
             apiKey: "AIzaSyChyZAmeBu2WLwsEzVrWFULbTYpl-nG0fE",
             authDomain: "hethongsos.firebaseapp.com",
@@ -138,11 +136,8 @@
         firebase.initializeApp(firebaseConfig);
         const db = firebase.database();
 
-        // TOPIC PHẢI KHỚP VỚI ESP32
-        const TOPIC_DATA = "sos_duong_duy_nhat/data"; 
-        const TOPIC_CMD = "sos_duong_duy_nhat/lenh";
-
         let authMode = 'login', mqttClient, map, marker;
+        let current_id = ""; // Lưu ID xe để kết nối đúng luồng dữ liệu
 
         // 2. QUẢN LÝ ĐĂNG NHẬP
         function switchMode(m) {
@@ -169,6 +164,7 @@
                 db.ref('users/' + id).once('value').then((s) => {
                     const userData = s.val();
                     if(userData && userData.password === pass) {
+                        current_id = id; // Chốt ID xe
                         document.getElementById('login-page').style.display = 'none';
                         document.getElementById('dash').style.display = 'block';
                         initDashboard();
@@ -179,92 +175,89 @@
             }
         }
 
-        // 3. KHỞI TẠO HỆ THỐNG SAU ĐĂNG NHẬP
+        // 3. KHỞI TẠO HỆ THỐNG
         function initDashboard() {
-            if (!map) {
-                map = L.map('map-frame').setView([21.0285, 105.8542], 15);
-                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-                marker = L.marker([21.0285, 105.8542]).addTo(map);
-            }
-            addLog("Đang kết nối Cloud...");
+            map = L.map('map-frame').setView([21.0285, 105.8542], 15);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+            marker = L.marker([21.0285, 105.8542]).addTo(map);
+
+            addLog("Đã đăng nhập vào xe: " + current_id);
             connectMQTT();
         }
 
         function connectMQTT() {
-            const clientId = "web_client_" + Math.random().toString(16).substr(2, 6);
+            const clientId = "web_" + current_id + "_" + Math.random().toString(16).substr(2, 4);
             mqttClient = new Paho.MQTT.Client("broker.hivemq.com", Number(8884), clientId);
             
+            // Topic động theo ID xe
+            const topic_data = "sos_system/" + current_id + "/data";
+
             mqttClient.onMessageArrived = (msg) => {
                 const payload = msg.payloadString;
-                console.log("MQTT nhận:", payload);
+                console.log("Dữ liệu nhận được:", payload);
                 
                 if(payload.startsWith("danger")) {
                     const parts = payload.split('|');
                     const lat = parseFloat(parts[1]);
                     const lng = parseFloat(parts[2]);
-                    if(!isNaN(lat) && !isNaN(lng)) triggerSOS(lat, lng);
+                    if(!isNaN(lat)) triggerSOS(lat, lng);
+                } else if(payload === "safe") {
+                    resetUI(); // Nhận "safe" từ ESP32 (do ấn nút) thì xanh lại
                 }
             };
 
-            mqttClient.onConnectionLost = (err) => {
-                addLog("<span style='color:orange'>Mất kết nối. Đang kết nối lại...</span>");
+            mqttClient.onConnectionLost = () => {
                 setTimeout(connectMQTT, 5000);
             };
 
             mqttClient.connect({ 
                 onSuccess: () => {
-                    addLog("<span style='color:#22c55e'>Cloud: Đã kết nối.</span>");
-                    mqttClient.subscribe(TOPIC_DATA);
+                    addLog("<span style='color:#22c55e'>Cloud: Đã kết nối kênh " + current_id + "</span>");
+                    mqttClient.subscribe(topic_data);
                 },
-                useSSL: true,
-                timeout: 10,
-                keepAliveInterval: 30
+                useSSL: true
             });
         }
 
-        // 4. XỬ LÝ TÍN HIỆU SOS
+        // 4. XỬ LÝ SOS
         function triggerSOS(lat, lng) {
             const header = document.getElementById('st-header');
             document.getElementById('st-text').innerHTML = '<i class="fas fa-exclamation-triangle"></i> CẢNH BÁO: TAI NẠN!';
             header.className = "header danger-bg";
             
             document.getElementById('pos-info').innerText = lat.toFixed(6) + ", " + lng.toFixed(6);
-            
-            // Cập nhật bản đồ chuẩn xác (Mức zoom 18 để soi rõ đường)
-            map.setView([lat, lng], 18);
-            marker.setLatLng([lat, lng]).bindPopup("<b>VỊ TRÍ TAI NẠN!</b>").openPopup();
+            map.setView([lat, lng], 17);
+            marker.setLatLng([lat, lng]);
 
-            // Thêm vào bảng lịch sử (Link Google Maps chuẩn xác)
             const time = new Date().toLocaleTimeString();
-            const googleMapsUrl = `https://www.google.com/maps?q=${lat},${lng}`;
-            
+            // Sửa link bản đồ cho chuẩn
+            const gMapLink = `https://www.google.com/maps?q=${lat},${lng}`;
             const row = `<tr>
                 <td>${time}</td>
                 <td style="color:var(--red); font-weight:700">TAI NẠN</td>
-                <td><a href="${googleMapsUrl}" target="_blank" class="map-link">XEM GOOGLE MAPS</a></td>
+                <td><a href="${gMapLink}" target="_blank" class="map-link">BẢN ĐỒ</a></td>
             </tr>`;
-            
             document.getElementById('history-body').insertAdjacentHTML('afterbegin', row);
-            addLog("<span style='color:var(--red)'>[SOS] Nhận tọa độ: " + lat + ", " + lng + "</span>");
-
+            
+            addLog("<span style='color:var(--red)'>[SOS] Vị trí: " + lat + ", " + lng + "</span>");
             if (navigator.vibrate) navigator.vibrate([500, 200, 500]);
         }
 
         function resetUI() {
             document.getElementById('st-text').innerHTML = '<i class="fas fa-check-circle"></i> TRẠNG THÁI: AN TOÀN';
             document.getElementById('st-header').className = "header safe-bg";
-            addLog("Hệ thống: Trở về an toàn.");
+            addLog("Hệ thống: Đã xác nhận an toàn.");
         }
 
         function sendResetCommand() {
+            const topic_cmd = "sos_system/" + current_id + "/lenh";
             if(mqttClient && mqttClient.isConnected()) {
                 const message = new Paho.MQTT.Message("reset_system");
-                message.destinationName = TOPIC_CMD;
+                message.destinationName = topic_cmd;
                 mqttClient.send(message);
                 resetUI();
-                alert("Đã gửi lệnh tắt báo động tới thiết bị!");
             } else {
-                alert("Lỗi: Mất kết nối Cloud!");
+                alert("Lỗi kết nối Cloud!");
             }
         }
 
