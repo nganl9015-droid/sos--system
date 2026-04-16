@@ -1,153 +1,32 @@
-<!DOCTYPE html>
-<html lang="vi">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Hệ Thống SOS Cloud</title>
-    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.js"></script>
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <style>
-        :root { --blue: #1e40af; --red: #dc2626; --green: #16a34a; --dark: #0f172a; }
-        body { font-family: sans-serif; background: var(--dark); color: white; margin: 0; }
-        #login-page { height: 100vh; display: flex; justify-content: center; align-items: center; background: #0f172a; }
-        .login-box { background: white; padding: 30px; border-radius: 15px; color: #334155; width: 320px; text-align: center; }
-        .inp { width: 100%; padding: 10px; margin: 10px 0; border: 1px solid #ddd; border-radius: 5px; box-sizing: border-box; }
-        .btn { width: 100%; padding: 12px; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; background: var(--blue); color: white; }
-        #dash { display: none; padding: 20px; background: #f1f5f9; color: #334155; min-height: 100vh; }
-        .header { padding: 15px; border-radius: 10px; text-align: center; font-weight: bold; margin-bottom: 20px; color: white; }
-        .safe-bg { background: var(--green); }
-        .danger-bg { background: var(--red); animation: blink 0.5s infinite; }
-        @keyframes blink { 50% { opacity: 0.7; } }
-        #map-frame { height: 300px; border-radius: 10px; margin-bottom: 15px; border: 2px solid #ddd; }
-        .card { background: white; padding: 15px; border-radius: 10px; margin-bottom: 15px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
-        #logs { background: #1e293b; color: #38bdf8; padding: 10px; height: 150px; overflow-y: auto; font-size: 12px; border-radius: 5px; }
-        .history-table { width: 100%; font-size: 12px; border-collapse: collapse; }
-        .history-table td { border-bottom: 1px solid #eee; padding: 5px; }
-    </style>
-</head>
-<body>
-
-    <div id="login-page">
-        <div class="login-box">
-            <h3>HỆ THỐNG SOS</h3>
-            <input type="text" id="user_id" class="inp" placeholder="Mã định danh">
-            <input type="password" id="user_pass" class="inp" placeholder="Mật khẩu">
-            <button class="btn" onclick="handleAuth('login')">ĐĂNG NHẬP</button>
-            <button class="btn" onclick="handleAuth('reg')" style="background: #64748b; margin-top: 5px;">ĐĂNG KÝ</button>
-        </div>
-    </div>
-
-    <div id="dash">
-        <div id="st-header" class="header safe-bg">TRẠNG THÁI: AN TOÀN</div>
-        <div id="map-frame"></div>
-        
-        <div class="card">
-            <h3><i class="fas fa-exclamation-triangle"></i> Bảng điều khiển</h3>
-            <button class="btn" style="background: #334155;" onclick="sendResetCommand()">XÁC NHẬN AN TOÀN</button>
-        </div>
-
-        <div class="card">
-            <h3><i class="fas fa-history"></i> Lịch sử & Nhật ký</h3>
-            <table class="history-table"><tbody id="history-body"></tbody></table>
-            <div id="logs"></div>
-        </div>
-    </div>
-
-    <script>
-        // CẤU HÌNH FIREBASE
-        const firebaseConfig = {
-            apiKey: "AIzaSyChyZAmeBu2WLwsEzVrWFULbTYpl-nG0fE",
-            databaseURL: "https://hethongsos-default-rtdb.asia-southeast1.firebasedatabase.app",
-            projectId: "hethongsos",
-        };
-        firebase.initializeApp(firebaseConfig);
-        const db = firebase.database();
-
-        let mqttClient, map, marker;
-
-        function handleAuth(mode) {
-            const id = document.getElementById('user_id').value;
-            const pass = document.getElementById('user_pass').value;
-            if(!id || !pass) return alert("Nhập đủ thông tin!");
-
-            if(mode === 'reg') {
-                db.ref('users/' + id).set({ password: pass }).then(() => alert("Đăng ký thành công!"));
-            } else {
-                db.ref('users/' + id).once('value').then(s => {
-                    if(s.val() && s.val().password === pass) {
-                        document.getElementById('login-page').style.display = 'none';
-                        document.getElementById('dash').style.display = 'block';
-                        initApp();
-                    } else alert("Sai tài khoản!");
-                });
-            }
+const time = new Date().toLocaleString();
+            history.push({time, lat, lng});
+            // Giới hạn 20 tin gần nhất
+            if(history.length > 20) history.shift();
+            localStorage.setItem('sos_history', JSON.stringify(history));
+            renderHistoryRow(time, lat, lng);
         }
 
-        function initApp() {
-            map = L.map('map-frame').setView([21.0285, 105.8542], 15);
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-            marker = L.marker([21.0285, 105.8542]).addTo(map);
-            connectMQTT();
-        }
-
-        function connectMQTT() {
-            const cid = "web_" + Math.random().toString(16).substr(2, 5);
-            mqttClient = new Paho.MQTT.Client("broker.hivemq.com", 8884, cid);
-            
-            mqttClient.onMessageArrived = (msg) => {
-                const p = msg.payloadString.split('|');
-                if(p[0] === "danger") {
-                    updateUI(true, p[1], p[2]);
-                } else if(p[0] === "safe") {
-                    updateUI(false);
-                }
-            };
-
-            mqttClient.connect({
-                useSSL: true,
-                onSuccess: () => {
-                    addLog("Đã kết nối máy chủ SOS");
-                    mqttClient.subscribe("hethong_sos/data");
-                }
-            });
-        }
-
-        function updateUI(isDanger, lat, lng) {
-            const head = document.getElementById('st-header');
-            if(isDanger) {
-                head.innerText = "CẢNH BÁO TAI NẠN!";
-                head.className = "header danger-bg";
-                const lt = parseFloat(lat), ln = parseFloat(lng);
-                map.setView([lt, ln], 17);
-                marker.setLatLng([lt, ln]);
-                renderRow(lt, ln);
-            } else {
-                head.innerText = "TRẠNG THÁI: AN TOÀN";
-                head.className = "header safe-bg";
-            }
-        }
-
-        function sendResetCommand() {
-            const m = new Paho.MQTT.Message("reset_system");
-            m.destinationName = "hethong_sos/lenh";
-            mqttClient.send(m);
-            updateUI(false);
-        }
-
-        function renderRow(lat, lng) {
-            const time = new Date().toLocaleTimeString();
-            const row = `<tr><td>${time}</td><td style="color:red">Sự cố</td><td><a href="https://www.google.com/maps?q=${lat},${lng}" target="_blank">Xem</a></td></tr>`;
+        function renderHistoryRow(time, lat, lng) {
+            // Sửa link Google Maps chuẩn xác
+            const mapUrl = `https://www.google.com/maps?q=${lat},${lng}`;
+            const row = `<tr>
+                <td>${time}</td>
+                <td style="color:red; font-weight:bold;">SỰ CỐ</td>
+                <td><a href="${mapUrl}" target="_blank" class="map-link">Xem bản đồ</a></td>
+            </tr>`;
             document.getElementById('history-body').insertAdjacentHTML('afterbegin', row);
         }
 
-        function addLog(txt) {
-            const l = document.getElementById('logs');
-            l.innerHTML += `<div>> ${txt}</div>`;
-            l.scrollTop = l.scrollHeight;
+        function loadSavedLocalData() {
+            const history = JSON.parse(localStorage.getItem('sos_history') || "[]");
+            document.getElementById('history-body').innerHTML = "";
+            history.forEach(item => renderHistoryRow(item.time, item.lat, item.lng));
+            addLog("Bắt đầu giám sát hệ thống...");
+        }
+
+        function clearLocalData() { 
+            localStorage.removeItem('sos_history'); 
+            location.reload(); 
         }
     </script>
 </body>
